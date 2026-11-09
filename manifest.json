@@ -1,0 +1,35 @@
+{
+  "id": "playlist-album-requester",
+  "name": "Playlist Album Requester",
+  "version": "1.1.0",
+  "api": 1,
+  "description": "Presses Aurral's album-download equivalent for every unique album already identified in a playlist.",
+  "uses": [
+    "Playlist track and album metadata",
+    "Aurral administrator API",
+    "Connected Lidarr library manager"
+  ],
+  "settings": [
+    {
+      "key": "maxAlbums",
+      "label": "Maximum albums per run",
+      "type": "number",
+      "help": "Safety limit for one playlist action. Leave empty for 100."
+    }
+  ],
+  "test": true,
+  "actions": [
+    {
+      "id": "request-albums",
+      "label": "Request hinted albums",
+      "target": "playlist",
+      "admin": true,
+      "background": true
+    }
+  ],
+  "events": [],
+  "downloadSource": null,
+  "importList": null,
+  "schedule": null,
+  "apiAccess": true
+}
