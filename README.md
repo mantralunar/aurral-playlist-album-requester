@@ -1,6 +1,6 @@
 # Playlist Album Requester for Aurral
 
-Adds **Request hinted albums** to each playlist menu. It takes every unique release Aurral has already identified for the playlist, checks its MusicBrainz primary type, and routes it to the appropriate library manager.
+Adds **Request hinted albums** to each playlist menu. It takes every unique release Aurral has already identified for the playlist, verifies its primary type directly with MusicBrainz, and routes it to the appropriate library manager.
 
 - **Album** → Lidarr, with an immediate search
 - **EP or Single** → Aurral's own download pipeline
@@ -25,7 +25,7 @@ The plugin:
 - reads Aurral's existing album identity from every playlist job, including unfinished entries;
 - deduplicates repeated albums;
 - performs no title matching or alternative release selection of its own;
-- reads Aurral's resolved MusicBrainz primary release type;
+- verifies Aurral's resolved release-group MBID directly with MusicBrainz rather than trusting a missing type that Aurral may represent as an album;
 - sends albums to Lidarr with immediate search enabled;
 - sends EPs and singles to Aurral, which tries its configured download sources in their normal order;
 - skips rather than guesses when the release type is missing or unsupported;
@@ -42,6 +42,9 @@ One run is limited to 100 unique albums by default. Change **Maximum albums per 
 - Aurral plugin API 1
 - A configured Lidarr library manager in Aurral
 - At least one working Aurral download source if EPs and singles should be downloaded
+- Network access from the Aurral container to `musicbrainz.org`
 - Playlist tracks whose albums have already been identified by Aurral
+
+MusicBrainz lookups are deliberately limited to approximately one per second. If MusicBrainz cannot verify a release type, the plugin makes no download request for that release; it never falls back to treating an unknown type as an album.
 
 Plugins are currently a beta Aurral feature, so a future Aurral update may require a plugin update.

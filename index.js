@@ -3,6 +3,8 @@ import path from "node:path";
 
 const DEFAULT_MAX_ALBUMS = 100;
 const HARD_MAX_ALBUMS = 500;
+const MUSICBRAINZ_REQUEST_INTERVAL_MS = 1100;
+let lastMusicBrainzRequestAt = 0;
 const text = (value) => String(value ?? "").trim();
 
 const apiHeaders = (api, json = false) => ({
@@ -51,12 +53,31 @@ export function uniqueAurralAlbums(jobs) {
   return { albums: [...albums.values()], skipped };
 }
 
-async function releaseType(api, album) {
-  const details = await getJson(
-    api,
-    `/artists/release-group/${encodeURIComponent(album.albumMbid)}`,
+async function releaseType(album) {
+  const wait = Math.max(
+    0,
+    MUSICBRAINZ_REQUEST_INTERVAL_MS - (Date.now() - lastMusicBrainzRequestAt),
   );
-  return text(details?.["primary-type"] || details?.primaryType);
+  if (wait) await pause(wait);
+
+  const response = await fetch(
+    `https://musicbrainz.org/ws/2/release-group/${encodeURIComponent(album.albumMbid)}?fmt=json`,
+    {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Aurral-Playlist-Album-Requester/1.2.1",
+      },
+    },
+  );
+  lastMusicBrainzRequestAt = Date.now();
+  if (!response.ok) {
+    throw new Error(`MusicBrainz release-type lookup returned HTTP ${response.status}`);
+  }
+
+  const details = await response.json();
+  const primaryType = text(details?.["primary-type"]);
+  if (!primaryType) throw new Error("MusicBrainz returned no primary release type");
+  return primaryType;
 }
 
 export function managerForReleaseType(value) {
@@ -116,7 +137,7 @@ async function requestPlaylistAlbums({ api, dataFolder, playlist, settings }) {
   }
 
   const report = {
-    pluginVersion: "1.2.0",
+    pluginVersion: "1.2.1",
     ranAt: new Date().toISOString(),
     playlist: { id: playlist.id, name: playlist.name, kind: playlist.kind },
     albumsFound: albums.length,
@@ -128,7 +149,7 @@ async function requestPlaylistAlbums({ api, dataFolder, playlist, settings }) {
 
   for (const album of albums) {
     try {
-      const primaryType = await releaseType(api, album);
+      const primaryType = await releaseType(album);
       const managedBy = managerForReleaseType(primaryType);
       if (!managedBy) {
         report.skippedReleases.push({
