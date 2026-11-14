@@ -51,11 +51,30 @@ export function uniqueAurralAlbums(jobs) {
   return { albums: [...albums.values()], skipped };
 }
 
-async function requestAlbum(api, album) {
+async function releaseType(api, album) {
+  const details = await getJson(
+    api,
+    `/artists/release-group/${encodeURIComponent(album.albumMbid)}`,
+  );
+  return text(details?.["primary-type"] || details?.primaryType);
+}
+
+export function managerForReleaseType(value) {
+  const normalized = text(value).toLowerCase();
+  if (normalized === "album") return "lidarr";
+  if (normalized === "ep" || normalized === "single") return "aurral";
+  return null;
+}
+
+async function requestAlbum(api, album, managedBy) {
   const response = await fetch(`${api.url}/library/albums/request`, {
     method: "POST",
     headers: apiHeaders(api, true),
-    body: JSON.stringify({ ...album, triggerSearch: true, managedBy: "lidarr" }),
+    body: JSON.stringify({
+      ...album,
+      triggerSearch: managedBy === "lidarr",
+      managedBy,
+    }),
   });
   if (!response.ok) throw new Error(await responseMessage(response));
   return response.json().catch(() => ({}));
@@ -97,19 +116,39 @@ async function requestPlaylistAlbums({ api, dataFolder, playlist, settings }) {
   }
 
   const report = {
-    pluginVersion: "1.1.0",
+    pluginVersion: "1.2.0",
     ranAt: new Date().toISOString(),
     playlist: { id: playlist.id, name: playlist.name, kind: playlist.kind },
     albumsFound: albums.length,
     requested: [],
     failed: [],
+    skippedReleases: [],
     skippedTracks: skipped,
   };
 
   for (const album of albums) {
     try {
-      const result = await requestAlbum(api, album);
-      report.requested.push({ album, status: result?.status || null });
+      const primaryType = await releaseType(api, album);
+      const managedBy = managerForReleaseType(primaryType);
+      if (!managedBy) {
+        report.skippedReleases.push({
+          album,
+          primaryType: primaryType || null,
+          reason: primaryType
+            ? `Unsupported MusicBrainz primary type: ${primaryType}`
+            : "Aurral returned no MusicBrainz primary type",
+        });
+        await pause(150);
+        continue;
+      }
+
+      const result = await requestAlbum(api, album, managedBy);
+      report.requested.push({
+        album,
+        primaryType,
+        managedBy,
+        status: result?.status || null,
+      });
     } catch (error) {
       report.failed.push({ album, reason: text(error?.message || error) });
     }
@@ -118,10 +157,14 @@ async function requestPlaylistAlbums({ api, dataFolder, playlist, settings }) {
 
   await saveReport(dataFolder, report);
   const skippedAlbums = new Set(skipped.map((item) => `${item.artist}\u0000${item.album}`)).size;
+  const lidarrCount = report.requested.filter((item) => item.managedBy === "lidarr").length;
+  const aurralCount = report.requested.filter((item) => item.managedBy === "aurral").length;
   return {
     message: [
-      `${report.requested.length} album download${report.requested.length === 1 ? "" : "s"} requested`,
+      `${lidarrCount} album${lidarrCount === 1 ? "" : "s"} sent to Lidarr`,
+      `${aurralCount} EP/single${aurralCount === 1 ? "" : "s"} sent to Aurral`,
       `${report.failed.length} failed`,
+      `${report.skippedReleases.length} unsupported type${report.skippedReleases.length === 1 ? "" : "s"} skipped`,
       `${skippedAlbums} lacked Aurral album data`,
     ].join(" · "),
   };
@@ -131,7 +174,10 @@ export default {
   async test({ api }) {
     if (!api?.url || !api?.key) throw new Error("Enable this plugin's Aurral API access first");
     await getJson(api, "/health/bootstrap");
-    return { message: "Connected to Aurral. Playlist album downloads are ready." };
+    return {
+      message:
+        "Connected to Aurral. Albums will use Lidarr; EPs and singles will use Aurral download sources.",
+    };
   },
   actions: { "request-albums": requestPlaylistAlbums },
 };

@@ -1,13 +1,14 @@
 {
   "id": "playlist-album-requester",
   "name": "Playlist Album Requester",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "api": 1,
-  "description": "Presses Aurral's album-download equivalent for every unique album already identified in a playlist.",
+  "description": "Requests playlist albums through Lidarr and routes EPs and singles through Aurral's other download sources.",
   "uses": [
     "Playlist track and album metadata",
     "Aurral administrator API",
-    "Connected Lidarr library manager"
+    "Connected Lidarr library manager",
+    "Configured Aurral download sources for EPs and singles"
   ],
   "settings": [
     {

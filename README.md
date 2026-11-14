@@ -1,6 +1,10 @@
 # Playlist Album Requester for Aurral
 
-Adds **Request hinted albums** to each playlist menu. It takes every unique album Aurral has already identified for the playlist and performs the API equivalent of pressing that album's **Download album** button, using Lidarr and starting its search immediately.
+Adds **Request hinted albums** to each playlist menu. It takes every unique release Aurral has already identified for the playlist, checks its MusicBrainz primary type, and routes it to the appropriate library manager.
+
+- **Album** → Lidarr, with an immediate search
+- **EP or Single** → Aurral's own download pipeline
+- **Other or unknown type** → skipped and reported
 
 This is designed for playlists such as the NOW playlists where each entry points at an artist's original album rather than the compilation. The compilation remains a playlist in Aurral, while Lidarr manages the full original albums.
 
@@ -20,11 +24,14 @@ The plugin:
 
 - reads Aurral's existing album identity from every playlist job, including unfinished entries;
 - deduplicates repeated albums;
-- performs no searching, title matching, or release selection of its own;
-- sends each request to Lidarr with immediate search enabled;
+- performs no title matching or alternative release selection of its own;
+- reads Aurral's resolved MusicBrainz primary release type;
+- sends albums to Lidarr with immediate search enabled;
+- sends EPs and singles to Aurral, which tries its configured download sources in their normal order;
+- skips rather than guesses when the release type is missing or unsupported;
 - skips a track if Aurral has not attached complete album identity data to it.
 
-The most recent detailed report is kept as `last-run.json` in the plugin's private data folder. It lists requested, unmatched, failed, and skipped entries.
+The most recent detailed report is kept as `last-run.json` in the plugin's private data folder. Every requested entry records its `primaryType` and whether it was `managedBy` Lidarr or Aurral. The report also lists failures, unsupported release types, and tracks without complete album identity.
 
 ## Safety limit
 
@@ -34,6 +41,7 @@ One run is limited to 100 unique albums by default. Change **Maximum albums per 
 
 - Aurral plugin API 1
 - A configured Lidarr library manager in Aurral
+- At least one working Aurral download source if EPs and singles should be downloaded
 - Playlist tracks whose albums have already been identified by Aurral
 
 Plugins are currently a beta Aurral feature, so a future Aurral update may require a plugin update.
